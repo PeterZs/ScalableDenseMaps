@@ -2,10 +2,13 @@ import numpy as np
 import scipy.sparse as sparse
 from scipy.special import logsumexp
 
-# from .point_to_triangle import nn_query_precise_torch
 
 from .nn_utils import knn_query, compute_sqdistmat
 from .point_to_triangle import nn_query_precise_np, barycentric_to_precise
+
+#: Default batch size for the point-to-triangle projection in ``Emb*`` map constructors,
+#: capped by the number of query points. Trades memory for speed.
+DEFAULT_PRECISE_BATCH_SIZE = 2000
 
 
 class PointWiseMap:
@@ -18,7 +21,7 @@ class PointWiseMap:
     Given a pointwise map $P$, the pullback of a function $f : S_1 \to R$ is a function $f_{pb} : S_2 \to R$ defined by $f_{pb}(x) = f(P(x))$.
     In practice it can easily be computed by matrix multiplication: $f_{pb} = P f$.
 
-    In practice, we usually don't need to use the exact values inside $P$, btu rather only care about multiplying with some functions,
+    In practice, we usually don't need to use the exact values inside $P$, but rather only care about multiplying with some functions,
     extracting maximal values per-row or per-column, or summing on rows or columns.
 
 
@@ -38,7 +41,6 @@ class PointWiseMap:
     def __init__(self, array_names=None):
         self.array_names = []
         self._add_array_name(array_names)
-        pass
 
     def _add_array_name(self, names):
         if names is None:
@@ -103,7 +105,7 @@ class PointWiseMap:
         return self.pull_back(other)
 
     def get_nn(self):
-        """Ouptputs the nearest neighbor map.
+        """Outputs the nearest neighbor map.
         The nearest neighbor map is the map that associates to each point of S2 the index of the closest point in S1.
 
         Returns
@@ -334,7 +336,7 @@ class P2PMap(PointWiseMap):
         return f_pb
 
     def get_nn(self):
-        """Ouptputs the nearest neighbor map.
+        """Outputs the nearest neighbor map.
         The nearest neighbor map is the same as the input.
 
         Returns
@@ -455,11 +457,10 @@ class EmbPreciseMap(PreciseMap):
             faces1,
             self.emb2,
             return_dist=False,
-            batch_size=min(2000, emb2.shape[0]),
+            batch_size=min(DEFAULT_PRECISE_BATCH_SIZE, emb2.shape[0]),
             n_jobs=n_jobs,
         )
 
-        # th.cuda.empty_cache()
         super().__init__(
             v2face_21=v2face_21,
             bary_coords=bary_coords,

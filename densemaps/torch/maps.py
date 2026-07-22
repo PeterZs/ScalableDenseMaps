@@ -19,6 +19,10 @@ from .nn_utils import nn_query, compute_sqdistmat
 
 from ..numpy.point_to_triangle import barycentric_to_precise
 
+#: Default batch size for the point-to-triangle projection in ``Emb*`` map constructors,
+#: capped by the number of query points. Trades memory for speed.
+DEFAULT_PRECISE_BATCH_SIZE = 2000
+
 
 def _sparse_matmul(x, y):
     """
@@ -110,7 +114,7 @@ class PointWiseMap:
     Given a pointwise map $P$, the pullback of a function $f : S_1 \to R$ is a function $f_{pb} : S_2 \to R$ defined by $f_{pb}(x) = f(P(x))$.
     In practice it can easily be computed by matrix multiplication: $f_{pb} = P f$.
 
-    In practice, we usually don't need to use the exact values inside $P$, btu rather only care about multiplying with some functions,
+    In practice, we usually don't need to use the exact values inside $P$, but rather only care about multiplying with some functions,
     extracting maximal values per-row or per-column, or summing on rows or columns.
 
     In torch, all maps can be represented in a batched way, with an additional dimension at the beginning of the tensor.
@@ -131,7 +135,6 @@ class PointWiseMap:
     def __init__(self, tensor_names=None):
         self.tensor_names = []
         self._add_tensor_name(tensor_names)
-        pass
 
     def _add_tensor_name(self, names):
         if names is None:
@@ -205,7 +208,7 @@ class PointWiseMap:
         raise NotImplementedError
 
     def get_nn(self):
-        """Ouptputs the nearest neighbor map.
+        """Outputs the nearest neighbor map.
         The nearest neighbor map is the map that associates to each point of S2 the index of the closest point in S1.
 
         Returns
@@ -475,7 +478,7 @@ class P2PMap(PointWiseMap):
         return f_pb
 
     def get_nn(self):
-        """Ouptputs the nearest neighbor map.
+        """Outputs the nearest neighbor map.
         The nearest neighbor map is the same as the input.
 
         Returns
@@ -700,10 +703,13 @@ class EmbPreciseMap(PreciseMap):
     faces1 : torch.Tensor
         (N1, 3)
     clear_cache : bool
-        The projection somehow leaves lot of cache on the GPU, which should be cleared manually (slower than the projection itself...)
+        Whether to free GPU memory after the projection (``torch.cuda.empty_cache()``). Only
+        useful on CUDA; a bit slower.
+    use_keops : bool, optional
+        Passed to the nearest-vertex query. Set False to skip KeOps and use plain torch.
     """
 
-    def __init__(self, emb1, emb2, faces1, clear_cache=True):
+    def __init__(self, emb1, emb2, faces1, clear_cache=True, use_keops=None):
         self.emb1 = emb1.contiguous()  # (N1, K)
         self.emb2 = emb2.contiguous()  # (N2, K)
 
@@ -715,11 +721,11 @@ class EmbPreciseMap(PreciseMap):
             faces1,
             self.emb2,
             return_dist=False,
-            batch_size=min(2000, emb2.shape[0]),
+            batch_size=min(DEFAULT_PRECISE_BATCH_SIZE, emb2.shape[0]),
             clear_cache=clear_cache,
+            use_keops=use_keops,
         )
 
-        # th.cuda.empty_cache()
         super().__init__(v2face_21, bary_coords, faces1, n1=self.emb1.shape[0])
         self._add_tensor_name(["emb1", "emb2"])
 
@@ -892,8 +898,6 @@ class EmbKernelDenseDistMap(KernelDenseDistMap):
         self.emb1 = emb1  # (N1, p) or (B, N1, p)
         self.emb2 = emb2  # (N2, p) or (B, N2, p)
         if normalize_emb:
-            # self.emb1 = self.emb1 / th.linalg.norm(self.emb1, dim=-1, keepdim=True)  # (N1, p) or (B, N1, p)
-            # self.emb2 = self.emb2 / th.linalg.norm(self.emb2, dim=-1, keepdim=True)  # (N2, p) or (B, N2, p)
             self.emb1 = nn.functional.normalize(
                 self.emb1, p=2, dim=-1
             )  # (N1, p) or (B, N1, p)
@@ -971,8 +975,6 @@ class KernelDistMap(PointWiseMap):
         self.emb1 = emb1.contiguous()  # (N1, K)  or (B, N1, K)
         self.emb2 = emb2.contiguous()  # (N2, K)  or (B, N2, K)
         if normalize_emb:
-            # self.emb1 = self.emb1 / th.linalg.norm(self.emb1, dim=-1, keepdim=True)  # (N1, p) or (B, N1, p)
-            # self.emb2 = self.emb2 / th.linalg.norm(self.emb2, dim=-1, keepdim=True)  # (N2, p) or (B, N2, p)
             self.emb1 = nn.functional.normalize(
                 self.emb1, p=2, dim=-1
             )  # (N1, p) or (B, N1, p)

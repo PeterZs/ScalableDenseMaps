@@ -4,6 +4,8 @@
         [1] - "Deblurring and Denoising of Maps between Shapes", by Danielle Ezuz and Mirela Ben-Chen.
 """
 
+import warnings
+
 from tqdm.auto import tqdm
 
 import torch as th
@@ -11,9 +13,26 @@ import torch.nn as nn
 
 from .nn_utils import nn_query, nn_query_dist
 
+#: Lazily-created, reused projection layer. ``PointsTriangleProjLayer`` holds no state
+#: (no parameters/buffers), so a single shared instance avoids per-batch object churn.
+_PROJ_LAYER = None
+
+
+def _get_proj_layer():
+    global _PROJ_LAYER
+    if _PROJ_LAYER is None:
+        _PROJ_LAYER = PointsTriangleProjLayer()
+    return _PROJ_LAYER
+
 
 def nn_query_precise_torch(
-    vert_emb, faces, points_emb, return_dist=False, batch_size=None, clear_cache=True
+    vert_emb,
+    faces,
+    points_emb,
+    return_dist=False,
+    batch_size=None,
+    clear_cache=True,
+    use_keops=None,
 ):
     """
     Project a pointcloud on a p-dimensional triangle mesh
@@ -32,6 +51,9 @@ def nn_query_precise_torch(
         If precompute_dmin is False, projects batches of points on the surface
     clear_cache   : bool
         Whether to clear cache after computation
+    use_keops     : bool, optional
+        Passed through for the Delta_min query (see :func:`project_pc_to_triangles`). Set False
+        to skip KeOps and use plain torch.
 
     Returns
     ----------------------------
@@ -50,27 +72,44 @@ def nn_query_precise_torch(
             precompute_dmin=batch_size is None,
             batch_size=batch_size,
             verbose=False,
+            use_keops=use_keops,
         )
+
+        # `return_dist` must stay inside `no_grad`: otherwise it re-attaches an autograd graph
+        # to `dists` (and pins `vert_emb`/`points_emb` through it), which accumulates across
+        # repeated calls in a training loop.
+        if return_dist:
+            targets = (bary_coords.unsqueeze(-1) * vert_emb[faces[face_match]]).sum(
+                1
+            )  # (n2, p)
+            dists = th.linalg.norm(targets - points_emb, dim=-1)
 
         if vert_emb.is_cuda and clear_cache:
             th.cuda.empty_cache()
 
     if return_dist:
-        targets = (bary_coords.unsqueeze(-1) * vert_emb[faces[face_match]]).sum(
-            1
-        )  # (n2, p)
-        dists = th.linalg.norm(targets - points_emb, dim=-1)
-
         return face_match, bary_coords, dists
 
     return face_match, bary_coords
 
 
+@th.no_grad()
 def project_pc_to_triangles(
-    vert_emb, faces, points_emb, precompute_dmin=True, batch_size=None, verbose=False
+    vert_emb,
+    faces,
+    points_emb,
+    precompute_dmin=True,
+    batch_size=None,
+    verbose=False,
+    use_keops=None,
 ):
     """
     Project a pointcloud on a set of triangles in p-dimension. Projection is defined as barycentric coordinates on one of the triangle.
+
+    .. note::
+        This picks the closest face per point (an argmin), so it is not differentiable. It always
+        runs under ``torch.no_grad()``, so it never keeps a gradient graph on its large temporary
+        ``(n_points, n_faces)`` tensors, whatever the caller's grad setting.
     Line i for the output has 3 non-zero values at indices j,k and l of the vertices of the triangle point i is projected on.
 
     Parameters
@@ -85,6 +124,10 @@ def project_pc_to_triangles(
         Whether to precompute all the values of delta_min. Faster but heavier in memory.
     batch_size      : int, optional
         If precompute_dmin is False, projects batches of points on the surface
+    use_keops       : bool, optional
+        Passed to :func:`nn_query_dist` for the Delta_min query. If None, KeOps is used when
+        available and the problem is large enough. Set False to skip KeOps and use plain torch
+        (handy to check whether KeOps is the one holding onto GPU memory).
 
 
     Returns
@@ -108,12 +151,15 @@ def project_pc_to_triangles(
     # Find closest vertex to each point
     if batch_size is not None:
         if precompute_dmin:
-            print("WARNING, `precompute_dmin` can't be True if batch size is not None")
+            warnings.warn(
+                "`precompute_dmin` is ignored (forced False) when `batch_size` is set.",
+                stacklevel=2,
+            )
         precompute_dmin = False
 
     # Distance from each point to its nearest vertex (Delta_min in [1])
     if precompute_dmin or batch_size is None:
-        Deltamin = nn_query_dist(vert_emb, points_emb)  # (n2,)
+        Deltamin = nn_query_dist(vert_emb, points_emb, use_keops=use_keops)  # (n2,)
 
     # Find closest vertex on each face
     dmin = None
@@ -168,7 +214,9 @@ def project_pc_to_triangles(
             )
 
             Deltamin_batch = nn_query_dist(
-                vert_emb, points_emb[batch_minmax[0] : batch_minmax[1]].contiguous()
+                vert_emb,
+                points_emb[batch_minmax[0] : batch_minmax[1]].contiguous(),
+                use_keops=use_keops,
             )
 
             # Get faceinds and barycentric coordinates
@@ -205,7 +253,6 @@ def compute_per_tri_max_edge_length(vert_emb, faces):
     lmax : torch.Tensor
         (m1,) maximum edge length
     """
-    # print("VEMB", vert_emb.max())
 
     tri_embs = vert_emb[faces]  # (m1, 3, p)
 
@@ -391,9 +438,8 @@ def project_to_mesh_multi(
     query_triangles = vert_emb[faces[query_faceinds]]  # (p, 3, k1)
     query_points = points_emb[vertinds]  # (l, k1)
 
-    # (l,), (l,k1), (l,3), (l,)
-    # dists, proj, bary_coords, argmin_triangle = PointsTriangleProjLayer().forward(triangles=query_triangles, points=query_points, return_bary=True, min_only=True)
-    bary_coords, argmin_triangle = PointsTriangleProjLayer().forward(
+    # (l,3), (l,)
+    bary_coords, argmin_triangle = _get_proj_layer().forward(
         triangles=query_triangles,
         points=query_points,
         return_dist=False,
@@ -419,7 +465,6 @@ class PointsTriangleProjLayer(nn.Module):
     """
 
     def __init__(self):
-        # pass
         super().__init__()
 
     def get_base_regions(self, s, t, det):
@@ -478,7 +523,6 @@ class PointsTriangleProjLayer(nn.Module):
             a[region_4_11] + 2.0 * d[region_4_11] + f[region_4_11]
         )
         # Region 4.1.2
-        # print('R4', (-d[region_4_12] / a[region_4_12]).max(), (-d[region_4_12] / a[region_4_12]).min())
         final_s[region_4_12] = -d[region_4_12] / a[region_4_12]
         final_dists[region_4_12] = (
             d[region_4_12] * final_s[region_4_12] + f[region_4_12]
@@ -496,12 +540,10 @@ class PointsTriangleProjLayer(nn.Module):
             c[region_4_221] + 2.0 * e[region_4_221] + f[region_4_221]
         )
         # Region 4.2.2.2
-        # print('R4.2', (-e[region_4_222] / c[region_4_222]).max(), (-e[region_4_222] / c[region_4_222]).min())
         final_t[region_4_222] = -e[region_4_222] / c[region_4_222]
         final_dists[region_4_222] = (
             e[region_4_222] * final_t[region_4_222] + f[region_4_222]
         )
-        # print('R4 final', final_s.max(), final_t.max())
         return final_s, final_t, final_dists
 
     def process_r3(self, a, c, e, f, verbose=False):
@@ -530,7 +572,7 @@ class PointsTriangleProjLayer(nn.Module):
         final_t[region_3_22] = -e[region_3_22] / c[region_3_22]
         final_dists[region_3_22] = (
             e[region_3_22] * final_t[region_3_22] + f[region_3_22]
-        )  # -e*t ????
+        )
 
         return final_s, final_t, final_dists
 
@@ -570,7 +612,6 @@ class PointsTriangleProjLayer(nn.Module):
         # final_dists = th.zeros_like(a)
 
         invDet = 1.0 / th.clamp(det, min=1e-6)
-        # print('Det', det.min(), invDet.max())
         final_s = s * invDet
         final_t = t * invDet
         final_dists = (
@@ -764,6 +805,7 @@ class PointsTriangleProjLayer(nn.Module):
 
         return final_s, final_t, final_dists
 
+    @th.no_grad()
     def forward(
         self,
         triangles=None,
@@ -882,6 +924,11 @@ class PointsTriangleProjLayer(nn.Module):
         final_s[r1], final_t[r1], final_dists[r1] = self.process_r1(
             a[r1], b[r1], c[r1], d[r1], e[r1], f[r1], verbose=verbose
         )
+
+        # These (n, m) / (n, m, p) precompute tensors are fully consumed by the region
+        # processing above; drop them before building projections/bary to lower the peak.
+        del a, b, c, d, e, f, s, t, det, diff
+        del r0, r1, r2, r3, r4, r5, r6
 
         output = []
         if min_only:

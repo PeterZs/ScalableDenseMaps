@@ -150,7 +150,6 @@ def project_pc_to_triangles(
     # Iterate along all points
     if precompute_dmin or batch_size is None:
         iterable = range(n_points) if not verbose else tqdm(range(n_points))
-        # for vertind in tqdm(range(n2)):
         for vertind in iterable:
             faceind, bary = project_to_mesh(
                 vert_emb,
@@ -174,7 +173,6 @@ def project_pc_to_triangles(
                 batch_size * batchind,
                 min(n_points, batch_size * (1 + batchind)),
             ]
-            # print(batch_minmax)
             dmin_batch = compute_all_dmin(
                 vert_emb,
                 faces,
@@ -694,7 +692,6 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
 
     # REGION 4
     if len(inds_4) > 0:
-        # print('Case 4',inds_4)
         test4_1 = d[inds_4] < 0
         inds4_1 = inds_4[test4_1]
         inds4_2 = inds_4[~test4_1]
@@ -734,7 +731,6 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         final_dists[inds4_222] = e[inds4_222] * final_t[inds4_222] + f[inds4_222]
 
     if len(inds_3) > 0:
-        # print('Case 3', inds_3)
         final_s[inds_3] = 0
 
         test3_1 = e[inds_3] >= 0
@@ -750,7 +746,6 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         inds3_21 = inds3_2[test3_21]
         inds3_22 = inds3_2[~test3_21]
 
-        # print(inds3_21, inds3_22)
 
         final_t[inds3_21] = 1
         final_dists[inds3_21] = c[inds3_21] + 2.0 * e[inds3_21] + f[inds3_21]
@@ -758,10 +753,9 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         final_t[inds3_22] = -e[inds3_22] / c[inds3_22]
         final_dists[inds3_22] = (
             e[inds3_22] * final_t[inds3_22] + f[inds3_22]
-        )  # -e*t ????
+        )
 
     if len(inds_5) > 0:
-        # print('Case 5', inds_5)
         final_t[inds_5] = 0
 
         test5_1 = d[inds_5] >= 0
@@ -782,8 +776,9 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         final_dists[inds5_22] = d[inds5_22] * final_s[inds5_22] + f[inds5_22]
 
     if len(inds_0) > 0:
-        # print('Case 0', inds_0)
-        invDet = 1.0 / det[inds_0]
+        # Clamp det away from 0 (matches the torch backend) so degenerate/near-degenerate
+        # triangles yield a finite projection instead of inf/NaN. det = a*c - b**2 >= 0.
+        invDet = 1.0 / np.clip(det[inds_0], 1e-6, None)
         final_s[inds_0] = s[inds_0] * invDet
         final_t[inds_0] = t[inds_0] * invDet
         final_dists[inds_0] = (
@@ -803,7 +798,6 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         )
 
     if len(inds_2) > 0:
-        # print('Case 2', inds_2)
 
         tmp0 = b[inds_2] + d[inds_2]
         tmp1 = c[inds_2] + e[inds_2]
@@ -861,7 +855,6 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         final_dists[inds2_222] = e[inds2_222] * final_t[inds2_222] + f[inds2_222]
 
     if len(inds_6) > 0:
-        # print('Case 6', inds_6)
         tmp0 = b[inds_6] + e[inds_6]
         tmp1 = a[inds_6] + d[inds_6]
 
@@ -918,7 +911,6 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         final_dists[inds6_222] = d[inds6_222] * final_s[inds6_222] + f[inds6_222]
 
     if len(inds_1) > 0:
-        # print('Case 1', inds_1)
         numer = c[inds_1] + e[inds_1] - b[inds_1] - d[inds_1]
 
         test1_1 = numer <= 0
@@ -932,7 +924,6 @@ def point_to_triangles_projection(triangles, point, return_bary=False):
         denom = a[inds1_2] - 2.0 * b[inds1_2] + c[inds1_2]
 
         test1_21 = numer[~test1_1] >= denom
-        # print(denom, numer, numer[~test1_1], test1_21, inds1_2)
         inds1_21 = inds1_2[test1_21]
         inds1_22 = inds1_2[~test1_21]
 

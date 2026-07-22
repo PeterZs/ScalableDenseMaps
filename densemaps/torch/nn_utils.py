@@ -9,6 +9,10 @@ try:
 except ImportError:
     KEOPS_AVAILABLE = False
 
+#: Minimum number of pairwise entries (N * M [* B]) above which KeOps is preferred over a
+#: dense pairwise-distance computation, when both are available.
+KEOPS_MIN_SIZE = 25000
+
 
 def compute_sqdistmat(X, Y, normalized=False):
     """
@@ -58,6 +62,8 @@ def nn_query(X, Y, use_keops=None):
     torch.Tensor
         The indices of the nearest neighbors of each point of Y in X, of shape (M,) or (B, M).
     """
+    # CPU inputs: fall back to the scikit-learn kd-tree in the numpy backend. Note this
+    # round-trips through numpy, so keep tensors on GPU if you want to avoid the copy.
     if not X.is_cuda or not Y.is_cuda:
         inds = np_nn_utils.knn_query(X.cpu().numpy(), Y.cpu().numpy())
         return th.tensor(inds, device=X.device)
@@ -68,7 +74,7 @@ def nn_query(X, Y, use_keops=None):
         else:
             size = X.shape[-2] * Y.shape[-2] * X.shape[0]
 
-        use_keops = KEOPS_AVAILABLE and size >= 25000
+        use_keops = KEOPS_AVAILABLE and size >= KEOPS_MIN_SIZE
 
     if use_keops:
         return nn_query_keops(X, Y)
@@ -149,6 +155,7 @@ def nn_query_dist(X, Y, use_keops=None):
     torch.Tensor
         The distance from each point of Y to its nearest neighbor in X, of shape (M,) or (B, M).
     """
+    # CPU inputs: fall back to the scikit-learn kd-tree (round-trips through numpy).
     if not X.is_cuda or not Y.is_cuda:
         dists, _ = np_nn_utils.knn_query(
             X.cpu().numpy(), Y.cpu().numpy(), return_distance=True
@@ -161,7 +168,7 @@ def nn_query_dist(X, Y, use_keops=None):
         else:
             size = X.shape[-2] * Y.shape[-2] * X.shape[0]
 
-        use_keops = KEOPS_AVAILABLE and size >= 25000
+        use_keops = KEOPS_AVAILABLE and size >= KEOPS_MIN_SIZE
 
     if use_keops:
         formula = pykeops.torch.Genred(
