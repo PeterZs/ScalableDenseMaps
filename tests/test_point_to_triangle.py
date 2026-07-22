@@ -44,6 +44,37 @@ def test_projection_lands_on_triangle():
     assert (bary >= -1e-8).all() and (bary <= 1 + 1e-8).all()
 
 
+def test_degenerate_triangle_stays_finite_and_matches_torch():
+    """Near-degenerate (sliver) triangles must not produce inf/NaN.
+
+    Region 0 divides by ``det = a*c - b**2``, which -> 0 for a degenerate triangle. Both
+    backends clamp ``det`` to ``1e-6``; this pins numpy to that behaviour (it previously
+    divided by the raw ``det``, yielding inf/NaN and disagreeing with torch).
+    """
+    # A thin strip of near-collinear vertices -> every face is a sliver (det ~ 1e-8).
+    n = 60
+    xs = np.linspace(0.0, 1.0, n)
+    V = np.stack([xs, 1e-4 * np.sin(20 * xs), np.zeros(n)], axis=1)
+    F = np.array([[i, i + 1, i + 2] for i in range(n - 2)])
+    # Points hovering just above the strip project into the face interiors (region 0).
+    rng = np.random.default_rng(3)
+    P = np.stack(
+        [rng.uniform(0.1, 0.9, 40), rng.uniform(-1e-4, 1e-4, 40), rng.uniform(0.05, 0.2, 40)],
+        axis=1,
+    )
+
+    fn, bn = project_np(V, F, P, precompute_dmin=True)
+    assert np.isfinite(bn).all(), "numpy barycentric coords must be finite"
+
+    ft, bt = project_torch(torch.tensor(V), torch.tensor(F), torch.tensor(P))
+    proj_n = (bn[..., None] * V[F[fn]]).sum(1)
+    proj_t = (bt.numpy()[..., None] * V[F[ft.numpy()]]).sum(1)
+    dn = np.linalg.norm(proj_n - P, axis=1)
+    dt = np.linalg.norm(proj_t - P, axis=1)
+    assert np.isfinite(dn).all()
+    assert np.abs(dn - dt).max() < 1e-6
+
+
 @pytest.mark.parametrize("dtype", [np.float32, np.float64])
 @pytest.mark.parametrize(
     "kwargs",
