@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "densemaps"
+version = "0.1.0"
+description = "Abstract, memory-scalable correspondence maps for 3D geometry (NumPy & PyTorch)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Robin Magnet" }]
+keywords = ["geometry-processing", "shape-correspondence", "functional-maps", "3d"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+# Core dependencies power the NumPy backend, which stands alone (no torch/keops needed).
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "tqdm",
+]
+
+[project.optional-dependencies]
+# The PyTorch backend (densemaps.torch). It reuses the NumPy backend internally.
+torch = ["torch"]
+# Memory-scalable KernelDistMap and GPU nearest-neighbour queries.
+keops = ["pykeops"]
+# Everything, plus the test tooling.
+all = ["torch", "pykeops"]
+test = ["pytest", "torch", "pykeops"]
+
+[project.urls]
+Homepage = "https://github.com/RobinMagnet/ScalableDenseMaps"
+Documentation = "https://robinmagnet.github.io/ScalableDenseMaps/"
+Repository = "https://github.com/RobinMagnet/ScalableDenseMaps"
+
+[tool.setuptools.packages.find]
+include = ["densemaps*"]
