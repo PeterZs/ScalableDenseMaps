@@ -15,18 +15,19 @@ A lightweight library that offers:
 
 # Installing
 
-Pip installation is not yet available.
-
-You can clone the directory using
+Clone the repository and install it with `pip`:
 
 ```bash
 git clone https://github.com/RobinMagnet/ScalableDenseMaps.git
+cd ScalableDenseMaps
+pip install .                 # NumPy backend only (numpy, scipy, scikit-learn, tqdm)
+pip install ".[torch]"        # + PyTorch backend
+pip install ".[torch,keops]"  # + memory-scalable KernelDistMap (pykeops)
+pip install ".[all]"          # everything
 ```
 
-And install the dependencies using
-```bash
-pip install -r requirements.txt
-```
+The NumPy backend has no PyTorch dependency; install the `torch` / `keops` extras only if
+you need the PyTorch backend or the memory-scalable `KernelDistMap`.
 
 
 # Shape Correspondence Representations
@@ -38,10 +39,10 @@ This library unifies three common ways to represent correspondences between 3D s
  1. **Vertex-to-Vertex Maps**: Direct mapping between vertices, represented as either:
      - An array `p2p_21`$\in [0, \dots, n_1]^{n_2}$, where `p2p_21[i]` indicates which vertex in $S_1$ corresponds to vertex $i$ in $S_2$
      - A binary matrix $\Pi\in\{0,1\}^{n_2\times n_1}$ where $\Pi_{ij}=1$ means vertex $i$ maps to vertex $j$
-2. **Vertex-to-Point Maps**: Maps vertices to arbitrary points on surface faces:
+2. **Vertex-to-Barycentri Maps**: Maps vertices to arbitrary points on surface faces, described by barycentric coordinates:
     - Represented by $\Pi\in[0,1]^{n_2\times nc_1}$ with $\sum_j \Pi_{ij} = 1$
-    - Maximum 3 non-zero entries per row (barycentric coordinates)
-    - See more details *e.g* in this [this paper](https://onlinelibrary.wiley.com/doi/full/10.1111/cgf.13254)
+    - Maximum 3 non-zero entries per row, which correspond to vertices of a face
+    - More details can be found for example in [this paper](https://onlinelibrary.wiley.com/doi/full/10.1111/cgf.13254)
 3. **Soft Maps**: Dense correspondence matrices:
     - $\Pi\in[0,1]^{n_2\times n_1}$ from softmax over similarity scores
     - Example: $\Pi_{ij} = \frac{\exp(S_{ij})}{\sum_j \exp(S_{ij})}$ where $S_{ij}$ measures similarity between embeddings

@@ -27,8 +27,7 @@ jobs:
     - name: Install package (with dependencies for docs)
       run: |
         pip install --upgrade pip
-        pip install -r requirements_docs.txt
-        pip install -r requirements.txt
+        pip install ".[torch,docs]"
 
     - name: Build HTML
       run: |

@@ -6,7 +6,6 @@
 import pathlib
 import sys
 sys.path.insert(0, pathlib.Path(__file__).parents[2].resolve().as_posix())
-print(pathlib.Path(__file__).parents[2].resolve().as_posix())
 
 import densemaps
 import densemaps.numpy
@@ -18,7 +17,8 @@ import densemaps.torch
 project = 'densemaps'
 copyright = '2024, Robin Magnet'
 author = 'Robin Magnet'
-release = '0.1.0'
+release = densemaps.__version__
+version = densemaps.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -34,8 +34,9 @@ extensions = ['sphinx.ext.duration',
               "sphinx_design",
               ]
 
-autodoc_mock_imports = ["sklearn"]
-# autodoc_mock_imports = ["pyFM", "scipy", "numpy", "trimesh", "scipy.linalg", "scipy.sparse", 'potpourri3d', "robust_laplacian"]
+# pykeops is import-guarded in the code and only used at call time, so it need not be installed to
+# build the docs. Mock it so autodoc never trips over it. (scikit-learn is a core dependency now.)
+autodoc_mock_imports = ["pykeops"]
 
 autodoc_default_options = {
     'members': True,

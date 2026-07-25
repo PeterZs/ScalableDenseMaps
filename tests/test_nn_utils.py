@@ -8,6 +8,7 @@ from densemaps.numpy.point_to_triangle import nn_query_precise_np
 
 
 def test_knn_query_2d():
+    """Nearest-neighbour indices match a brute-force argmin over the full distance matrix."""
     rng = np.random.default_rng(0)
     X = rng.standard_normal((30, 4))
     Y = rng.standard_normal((10, 4))
@@ -19,6 +20,7 @@ def test_knn_query_2d():
 
 
 def test_knn_query_k_and_distance():
+    """With k>1 and return_distance, gives (M, k) distances sorted ascending plus matching indices."""
     rng = np.random.default_rng(0)
     X = rng.standard_normal((30, 4))
     Y = rng.standard_normal((10, 4))
@@ -29,6 +31,7 @@ def test_knn_query_k_and_distance():
 
 
 def test_knn_query_batched():
+    """(B, N, d) inputs are matched per batch element, giving (B, M) indices."""
     rng = np.random.default_rng(0)
     X = rng.standard_normal((3, 30, 4))
     Y = rng.standard_normal((3, 10, 4))
@@ -47,12 +50,14 @@ def test_knn_query_broadcast(xb, yb):
 
 
 def test_knn_query_mismatched_batch_raises():
+    """Incompatible batch sizes (2 vs 3, neither being 1) are rejected instead of mis-pairing."""
     rng = np.random.default_rng(0)
     with pytest.raises(AssertionError):
         knn_query(rng.standard_normal((2, 30, 4)), rng.standard_normal((3, 10, 4)))
 
 
 def test_compute_sqdistmat_matches_bruteforce():
+    """The (N, M) squared-distance matrix equals the brute-force pairwise computation."""
     rng = np.random.default_rng(0)
     X = rng.standard_normal((12, 5))
     Y = rng.standard_normal((9, 5))
@@ -62,6 +67,7 @@ def test_compute_sqdistmat_matches_bruteforce():
 
 
 def test_compute_sqdistmat_batched():
+    """Batched (B, N, d) inputs give a (B, N, M) distance matrix."""
     rng = np.random.default_rng(0)
     X = rng.standard_normal((4, 12, 5))
     Y = rng.standard_normal((4, 9, 5))

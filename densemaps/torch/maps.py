@@ -337,9 +337,7 @@ class SparseMap(PointWiseMap):
             if f.ndim < 3:
                 f_pb = th.stack([mat[i] @ f for i in range(mat.shape[0])])
             else:
-                assert (
-                    f.shape[0] == mat.shape[0]
-                ), "Batch size of f and map should match"
+                assert f.shape[0] == mat.shape[0], "Batch size of f and map should match"
                 f_pb = th.stack([mat[i] @ f[i] for i in range(f.shape[0])])
         else:
             f_pb = mat @ f
@@ -448,17 +446,15 @@ class P2PMap(PointWiseMap):
         # Check dimensions consistency
         if f.ndim == 1 and f.shape[-1] <= self.max_ind:
             raise ValueError(
-                f"Function f doesn't have enough entries, need at least {1+self.max_ind} but only has {f.shape[-1]}"
+                f"Function f doesn't have enough entries, need at least {1 + self.max_ind} but only has {f.shape[-1]}"
             )
         elif f.ndim > 1 and f.shape[-2] <= self.max_ind:
             raise ValueError(
-                f"Function f doesn't have enough entries, need at least {1+self.max_ind} but only has {f.shape[-2]}"
+                f"Function f doesn't have enough entries, need at least {1 + self.max_ind} but only has {f.shape[-2]}"
             )
 
         if f.ndim == 3 and self.p2p_21.ndim == 2:
-            assert (
-                f.shape[0] == self.p2p_21.shape[0]
-            ), "Batch size of f and p2p_21 should match"
+            assert f.shape[0] == self.p2p_21.shape[0], "Batch size of f and p2p_21 should match"
 
         # Compute pull back on different shape scenarios
         if f.ndim == 1 or f.ndim == 2:  # (N1,) or (N1, p)
@@ -469,9 +465,7 @@ class P2PMap(PointWiseMap):
                 f_pb = f[:, self.p2p_21]  # (B, n2, k)
             else:
                 # f_pb = f[th.arange(f.shape[0]).unsqueeze(1), self.p2p_21]
-                f_pb = th.take_along_dim(
-                    f, self.p2p_21.unsqueeze(-1), dim=1
-                )  # (B, n2, k)
+                f_pb = th.take_along_dim(f, self.p2p_21.unsqueeze(-1), dim=1)  # (B, n2, k)
         else:
             raise ValueError("Function is only dim 1, 2 or 3")
 
@@ -494,10 +488,7 @@ class P2PMap(PointWiseMap):
             map_mt = self._single_p2p_to_sparse(self.p2p_21).mT
         else:
             map_mt = th.stack(
-                [
-                    self._single_p2p_to_sparse(self.p2p_21[i]).T
-                    for i in range(self.p2p_21.shape[0])
-                ]
+                [self._single_p2p_to_sparse(self.p2p_21[i]).T for i in range(self.p2p_21.shape[0])]
             )
         return SparseMap(map_mt)
 
@@ -514,10 +505,7 @@ class P2PMap(PointWiseMap):
             return self._single_p2p_to_sparse(self.p2p_21)
         else:
             return th.stack(
-                [
-                    self._single_p2p_to_sparse(self.p2p_21[i])
-                    for i in range(self.p2p_21.shape[0])
-                ]
+                [self._single_p2p_to_sparse(self.p2p_21[i]) for i in range(self.p2p_21.shape[0])]
             )
 
     def to_dense(self):
@@ -608,9 +596,7 @@ class PreciseMap(PointWiseMap):
 
         elif f.ndim == 3:
             f_selected = f[:, target_faces]  # (B, N2, 3, p)
-            f_pb = (self.bary_coords.unsqueeze(0).unsqueeze(-1) * f_selected).sum(
-                2
-            )  # (B, N2, p)
+            f_pb = (self.bary_coords.unsqueeze(0).unsqueeze(-1) * f_selected).sum(2)  # (B, N2, p)
 
         else:
             raise ValueError("Function is only dim 1, 2 or 3")
@@ -633,16 +619,12 @@ class PreciseMap(PointWiseMap):
         target_faces = self.faces1[self.v2face_21]  # (n2, 3)
 
         In = th.tile(th.arange(self.n2, device=self.v2face_21.device), (3,))  # (3*n2)
-        Jn = th.concatenate(
-            [target_faces[:, 0], target_faces[:, 1], target_faces[:, 2]]
-        )  # (3*n2)
+        Jn = th.concatenate([target_faces[:, 0], target_faces[:, 1], target_faces[:, 2]])  # (3*n2)
         Sn = th.concatenate(
             [self.bary_coords[:, 0], self.bary_coords[:, 1], self.bary_coords[:, 2]]
         )  # (3*n2)
 
-        return th.sparse_coo_tensor(
-            th.stack([In, Jn]), Sn, (self.n2, self.n1)
-        ).coalesce()
+        return th.sparse_coo_tensor(th.stack([In, Jn]), Sn, (self.n2, self.n1)).coalesce()
 
     @property
     def mT(self):
@@ -898,12 +880,8 @@ class EmbKernelDenseDistMap(KernelDenseDistMap):
         self.emb1 = emb1  # (N1, p) or (B, N1, p)
         self.emb2 = emb2  # (N2, p) or (B, N2, p)
         if normalize_emb:
-            self.emb1 = nn.functional.normalize(
-                self.emb1, p=2, dim=-1
-            )  # (N1, p) or (B, N1, p)
-            self.emb2 = nn.functional.normalize(
-                self.emb2, p=2, dim=-1
-            )  # (N2, p) or (B, N2, p)
+            self.emb1 = nn.functional.normalize(self.emb1, p=2, dim=-1)  # (N1, p) or (B, N1, p)
+            self.emb2 = nn.functional.normalize(self.emb2, p=2, dim=-1)  # (N2, p) or (B, N2, p)
 
         if dist_type == "sqdist":
             dist = compute_sqdistmat(
@@ -975,12 +953,8 @@ class KernelDistMap(PointWiseMap):
         self.emb1 = emb1.contiguous()  # (N1, K)  or (B, N1, K)
         self.emb2 = emb2.contiguous()  # (N2, K)  or (B, N2, K)
         if normalize_emb:
-            self.emb1 = nn.functional.normalize(
-                self.emb1, p=2, dim=-1
-            )  # (N1, p) or (B, N1, p)
-            self.emb2 = nn.functional.normalize(
-                self.emb2, p=2, dim=-1
-            )  # (N2, p) or (B, N2, p)
+            self.emb1 = nn.functional.normalize(self.emb1, p=2, dim=-1)  # (N1, p) or (B, N1, p)
+            self.emb2 = nn.functional.normalize(self.emb2, p=2, dim=-1)  # (N2, p) or (B, N2, p)
 
         self.blur = th.ones(1, device=self.emb1.device, dtype=self.emb1.dtype)
         if blur is not None:
@@ -1087,9 +1061,7 @@ class KernelDistMap(PointWiseMap):
             f_in = f.unsqueeze(-1).contiguous()  # (N1, 1)
             if self.emb1.ndim == 3:
                 f_in = f_in.unsqueeze(0)  # (1, N1, 1)
-            f_pb = pull_back_formula(f_in, self.emb1, self.emb2, sqblur).squeeze(
-                -1
-            )  # (N2, )
+            f_pb = pull_back_formula(f_in, self.emb1, self.emb2, sqblur).squeeze(-1)  # (N2, )
 
         elif f.ndim == 2:
             f_input = f.contiguous()  # (N1, p)

@@ -6,8 +6,7 @@ from scipy.special import logsumexp
 from .nn_utils import knn_query, compute_sqdistmat
 from .point_to_triangle import nn_query_precise_np, barycentric_to_precise
 
-#: Default batch size for the point-to-triangle projection in ``Emb*`` map constructors,
-#: capped by the number of query points. Trades memory for speed.
+# Default batch size for the point-to-triangle projection. Trades memory for speed.
 DEFAULT_PRECISE_BATCH_SIZE = 2000
 
 
@@ -21,7 +20,7 @@ class PointWiseMap:
     Given a pointwise map $P$, the pullback of a function $f : S_1 \to R$ is a function $f_{pb} : S_2 \to R$ defined by $f_{pb}(x) = f(P(x))$.
     In practice it can easily be computed by matrix multiplication: $f_{pb} = P f$.
 
-    In practice, we usually don't need to use the exact values inside $P$, but rather only care about multiplying with some functions,
+    However, we usually don't need to use the exact values inside $P$, but rather only care about multiplying with some functions,
     extracting maximal values per-row or per-column, or summing on rows or columns.
 
 
@@ -35,7 +34,7 @@ class PointWiseMap:
 
     """
 
-    #: Intrinsically an index (vertex-to-vertex) representation. Overridden by P2PMap.
+    # Whether this is a vertex-to-vertex representation. Overridden by P2PMap.
     is_index_map = False
 
     def __init__(self, array_names=None):
@@ -60,7 +59,7 @@ class PointWiseMap:
         #. f represents multiple function on S1, of shape (N1, p), then the output is a function on S2, of shape (N2, p)
         #. f represents a batch multiple function on S1, of shape (B, N1, p), then the output is a function on S2, of shape (B, N2, p)
 
-        Note tht the case where f is a batch of a single function (B, N1) is not supported, and one should then use `f[..., None]`
+        Note that the case where f is a batch of a single function (B, N1) is not supported, and one should then use `f[..., None]`
 
         Parameters
         -------------------
@@ -187,23 +186,21 @@ class SparseMap(PointWiseMap):
 
     def pull_back(self, f):
         """Pull back a function $f$.
-        Four possibilities:
+        Two possibilities:
 
-        #. f is a function on S1, of shape (N1,), then the output is a function on S2, of shape (N2,)
-        #. f represents multiple function on S1, of shape (N1, p), then the output is a function on S2, of shape (N2, p)
-        #. f represents a batch multiple function on S1, of shape (B, N1, p), then the output is a function on S2, of shape (B, N2, p)
+        # f is a function on S1, of shape (N1,), then the output is a function on S2, of shape (N2,)
+        # f represents multiple function on S1, of shape (N1, p), then the output is a function on S2, of shape (N2, p)
 
-        Note tht the case where f is a batch of a single function (B, N1) is not supported, and one should then use `f[..., None]`
 
         Parameters
         -------------------
         f : np.ndarray
-            (N1,), (N1, p) or (B, N1, p)
+            (N1,), (N1, p)
 
         Returns
         -------------------
         f_pb : np.ndarray
-            (N2,), (N2, p) or (B, N2, p)
+            (N2,), (N2, p)
         """
         return self.map @ f
 
@@ -245,7 +242,7 @@ class P2PMap(PointWiseMap):
         Number of points in S1. If None, n1 = p2p.max()+1
     """
 
-    #: P2PMap is stored as a one-index-per-row array (see :attr:`shape`).
+    # P2PMap is stored as a one-index-per-row array
     is_index_map = True
 
     def __init__(self, p2p_21, n1=None):
@@ -310,18 +307,16 @@ class P2PMap(PointWiseMap):
         # Ensure f doesn't have too few entries
         if f.ndim == 1 and f.shape[-1] <= self.max_ind:
             raise ValueError(
-                f"Function f doesn't have enough entries, need at least {1+self.max_ind} but only has {f.shape[-1]}"
+                f"Function f doesn't have enough entries, need at least {1 + self.max_ind} but only has {f.shape[-1]}"
             )
         elif f.ndim > 1 and f.shape[-2] <= self.max_ind:
             raise ValueError(
-                f"Function f doesn't have enough entries, need at least {1+self.max_ind} but only has {f.shape[-2]}"
+                f"Function f doesn't have enough entries, need at least {1 + self.max_ind} but only has {f.shape[-2]}"
             )
 
         # Ensure potential batch dimensions match
         if f.ndim == 3 and self.p2p_21.ndim == 2:
-            assert (
-                f.shape[0] == self.p2p_21.shape[0]
-            ), "Batch size of f and p2p_21 should match"
+            assert f.shape[0] == self.p2p_21.shape[0], "Batch size of f and p2p_21 should match"
 
         if f.ndim == 1 or f.ndim == 2:  # (N1,) or (N1, p)
             f_pb = f[self.p2p_21]  # (n2, p) or (B, n2, p)
@@ -414,9 +409,7 @@ class EmbP2PMap(P2PMap):
     """
 
     def __init__(self, emb1, emb2, n_jobs=1):
-        assert (
-            emb1.shape[-1] == emb2.shape[-1]
-        ), "Embeddings should have the same dimension."
+        assert emb1.shape[-1] == emb2.shape[-1], "Embeddings should have the same dimension."
         self.emb1 = emb1  # (N1, p) or (B, N1, p)
         self.emb2 = emb2  # (N2, p) or (B, N2, p)
         self.n_jobs = n_jobs
@@ -446,9 +439,7 @@ class EmbPreciseMap(PreciseMap):
     """
 
     def __init__(self, emb1, emb2, faces1, n_jobs=1):
-        assert (
-            emb1.shape[-1] == emb2.shape[-1]
-        ), "Embeddings should have the same dimension."
+        assert emb1.shape[-1] == emb2.shape[-1], "Embeddings should have the same dimension."
         self.emb1 = emb1  # (N1, p)
         self.emb2 = emb2  # (N2, p)
 
@@ -639,9 +630,7 @@ class EmbKernelDenseDistMap(KernelDenseDistMap):
 
         # Normalize embeddings
         if normalize_emb:
-            norm1 = np.linalg.norm(
-                self.emb1, axis=-1, keepdims=True
-            )  # (N1, 1) or (B, N1, 1)
+            norm1 = np.linalg.norm(self.emb1, axis=-1, keepdims=True)  # (N1, 1) or (B, N1, 1)
             norm2 = np.linalg.norm(self.emb2, axis=-1, keepdims=True)
             self.emb1 = self.emb1 / np.clip(norm1, 1e-6, None)  # (N1, p) or (B, N1, p)
             self.emb2 = self.emb2 / np.clip(norm2, 1e-6, None)  # (N2, p) or (B, N2, p)
@@ -654,9 +643,7 @@ class EmbKernelDenseDistMap(KernelDenseDistMap):
             if self.emb1.ndim == 2:
                 dist = -self.emb2 @ self.emb1.T
             else:
-                dist = -self.emb2 @ self.emb1.transpose(
-                    0, 2, 1
-                )  # (N2, N1)  or (B, N2, N1)
+                dist = -self.emb2 @ self.emb1.transpose(0, 2, 1)  # (N2, N1)  or (B, N2, N1)
 
         self.dist_type = dist_type
 

@@ -40,12 +40,14 @@ def np_maps():
 
 @pytest.mark.parametrize("name", ["P2PMap", "SparseMap", "PreciseMap", "KernelDense"])
 def test_numpy_shape_and_ndim(np_maps, name):
+    """Every representation reports the matrix shape (N2, N1) and ndim 2."""
     m = np_maps[name]
     assert tuple(m.shape) == (N2, N1)
     assert m.ndim == 2
 
 
 def test_numpy_is_index_map_flag(np_maps):
+    """Only P2PMap flags itself as an index map; its raw index array stays (N2,)."""
     assert np_maps["P2PMap"].is_index_map is True
     for name in ["SparseMap", "PreciseMap", "KernelDense"]:
         assert np_maps[name].is_index_map is False
@@ -55,6 +57,7 @@ def test_numpy_is_index_map_flag(np_maps):
 
 @pytest.mark.parametrize("name", ["P2PMap", "SparseMap", "PreciseMap", "KernelDense"])
 def test_numpy_pull_back_shapes(np_maps, name):
+    """`@` (pull-back) maps (N1,) -> (N2,) and (N1, p) -> (N2, p) for every representation."""
     rng = np.random.default_rng(1)
     m = np_maps[name]
     assert (m @ rng.standard_normal(N1)).shape == (N2,)
@@ -63,6 +66,7 @@ def test_numpy_pull_back_shapes(np_maps, name):
 
 @pytest.mark.parametrize("name", ["P2PMap", "SparseMap", "PreciseMap", "KernelDense"])
 def test_numpy_get_nn(np_maps, name):
+    """get_nn returns (N2,) valid vertex indices (< N1) for every representation."""
     m = np_maps[name]
     nn = m.get_nn()
     assert nn.shape == (N2,)
@@ -81,8 +85,11 @@ def test_numpy_compose_then_get_nn(np_maps, name):
 
 
 def test_numpy_kernel_mT_and_reverse():
+    """reverse() is a row-stochastic (N1, N2) map; mT is the literal transpose and mT.mT round-trips."""
     rng = np.random.default_rng(3)
-    m = nm.EmbKernelDenseDistMap(rng.standard_normal((N1, 5)), rng.standard_normal((N2, 5)), blur=0.3)
+    m = nm.EmbKernelDenseDistMap(
+        rng.standard_normal((N1, 5)), rng.standard_normal((N2, 5)), blur=0.3
+    )
     # reverse is row-stochastic (N1, N2); mT is the literal transpose
     rev = m.reverse()
     assert rev.shape == (N1, N2)
@@ -117,6 +124,7 @@ def th_maps():
 
 
 def test_torch_is_index_map_flag(th_maps):
+    """Torch mirror of the index-map flag / matrix-shape contract."""
     assert th_maps["P2PMap"].is_index_map is True
     for name in ["SparseMap", "PreciseMap", "KernelDense"]:
         assert th_maps[name].is_index_map is False
@@ -125,6 +133,7 @@ def test_torch_is_index_map_flag(th_maps):
 
 @pytest.mark.parametrize("name", ["P2PMap", "SparseMap", "PreciseMap", "KernelDense"])
 def test_torch_pull_back_shapes(th_maps, name):
+    """Torch mirror of the pull-back shape contract: (N1,) -> (N2,) and (N1, p) -> (N2, p)."""
     rng = np.random.default_rng(1)
     m = th_maps[name]
     assert tuple((m @ torch.tensor(rng.standard_normal(N1))).shape) == (N2,)
@@ -133,6 +142,7 @@ def test_torch_pull_back_shapes(th_maps, name):
 
 @pytest.mark.parametrize("name", ["P2PMap", "SparseMap", "PreciseMap", "KernelDense"])
 def test_torch_get_nn(th_maps, name):
+    """get_nn returns (N2,) indices with long dtype (usable for indexing) on every representation."""
     m = th_maps[name]
     nn = m.get_nn()
     assert tuple(nn.shape) == (N2,)
@@ -141,6 +151,7 @@ def test_torch_get_nn(th_maps, name):
 
 @pytest.mark.parametrize("name", ["P2PMap", "SparseMap", "PreciseMap", "KernelDense"])
 def test_torch_compose_then_get_nn(th_maps, name):
+    """Composition A @ B yields a SparseMap whose get_nn works (torch mirror of the numpy regression)."""
     m = th_maps[name]
     other = tm.P2PMap(torch.randint(0, 6, (N1,)), n1=6)
     composed = m @ other

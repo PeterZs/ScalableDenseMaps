@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "densemaps"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Abstract, memory-scalable correspondence maps for 3D geometry (NumPy & PyTorch)."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -33,11 +33,21 @@ keops = ["pykeops"]
 # Everything, plus the test tooling.
 all = ["torch", "pykeops"]
 test = ["pytest", "torch", "pykeops"]
+# Interactive examples under examples/.
+examples = ["pyvista"]
+# Building the Sphinx documentation.
+docs = ["furo", "myst-parser", "sphinx>=4", "sphinx-math-dollar", "sphinx-design"]
 
 [project.urls]
 Homepage = "https://github.com/RobinMagnet/ScalableDenseMaps"
 Documentation = "https://robinmagnet.github.io/ScalableDenseMaps/"
 Repository = "https://github.com/RobinMagnet/ScalableDenseMaps"
+
+[tool.ruff]
+line-length = 100
+
+[tool.setuptools.dynamic]
+version = { attr = "densemaps.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["densemaps*"]

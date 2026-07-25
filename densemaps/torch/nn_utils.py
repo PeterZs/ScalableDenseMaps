@@ -33,9 +33,7 @@ def compute_sqdistmat(X, Y, normalized=False):
     if not normalized:
         # (..., N, 1) + (...,1, M)
         return (
-            th.square(X).sum(-1).unsqueeze(-1)
-            + th.square(Y).sum(-1).unsqueeze(-2)
-            - 2 * (X @ Y.mT)
+            th.square(X).sum(-1).unsqueeze(-1) + th.square(Y).sum(-1).unsqueeze(-2) - 2 * (X @ Y.mT)
         )
     else:
         return 2 - 2 * X @ Y.mT
@@ -157,9 +155,7 @@ def nn_query_dist(X, Y, use_keops=None):
     """
     # CPU inputs: fall back to the scikit-learn kd-tree (round-trips through numpy).
     if not X.is_cuda or not Y.is_cuda:
-        dists, _ = np_nn_utils.knn_query(
-            X.cpu().numpy(), Y.cpu().numpy(), return_distance=True
-        )
+        dists, _ = np_nn_utils.knn_query(X.cpu().numpy(), Y.cpu().numpy(), return_distance=True)
         return th.tensor(dists, device=X.device, dtype=X.dtype)
 
     if use_keops is None:

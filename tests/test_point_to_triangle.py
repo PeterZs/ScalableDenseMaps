@@ -97,9 +97,7 @@ def test_torch_matches_numpy_projected_distance(dtype, kwargs):
     P = rng.standard_normal((50, 3)).astype(dtype)
 
     fn, bn = project_np(V, F, P, precompute_dmin=True)
-    ft, bt = project_torch(
-        torch.tensor(V), torch.tensor(F), torch.tensor(P), **kwargs
-    )
+    ft, bt = project_torch(torch.tensor(V), torch.tensor(F), torch.tensor(P), **kwargs)
     ft = ft.numpy()
     bt = bt.numpy()
 

@@ -13,8 +13,7 @@ import torch.nn as nn
 
 from .nn_utils import nn_query, nn_query_dist
 
-#: Lazily-created, reused projection layer. ``PointsTriangleProjLayer`` holds no state
-#: (no parameters/buffers), so a single shared instance avoids per-batch object churn.
+# This avoid per based instanciation of the projection layer
 _PROJ_LAYER = None
 
 
@@ -79,9 +78,7 @@ def nn_query_precise_torch(
         # to `dists` (and pins `vert_emb`/`points_emb` through it), which accumulates across
         # repeated calls in a training loop.
         if return_dist:
-            targets = (bary_coords.unsqueeze(-1) * vert_emb[faces[face_match]]).sum(
-                1
-            )  # (n2, p)
+            targets = (bary_coords.unsqueeze(-1) * vert_emb[faces[face_match]]).sum(1)  # (n2, p)
             dists = th.linalg.norm(targets - points_emb, dim=-1)
 
         if vert_emb.is_cuda and clear_cache:
@@ -106,11 +103,12 @@ def project_pc_to_triangles(
     """
     Project a pointcloud on a set of triangles in p-dimension. Projection is defined as barycentric coordinates on one of the triangle.
 
+    Line i for the output has 3 non-zero values at indices j,k and l of the vertices of the triangle point i is projected on.
+
     .. note::
         This picks the closest face per point (an argmin), so it is not differentiable. It always
         runs under ``torch.no_grad()``, so it never keeps a gradient graph on its large temporary
         ``(n_points, n_faces)`` tensors, whatever the caller's grad setting.
-    Line i for the output has 3 non-zero values at indices j,k and l of the vertices of the triangle point i is projected on.
 
     Parameters
     ----------------------------
@@ -194,9 +192,7 @@ def project_pc_to_triangles(
 
         # Initialize output
         face_match = th.zeros(n_points, dtype=th.long, device=vert_emb.device)
-        bary_coord = th.zeros(
-            n_points, 3, device=vert_emb.device, dtype=vert_emb.dtype
-        )
+        bary_coord = th.zeros(n_points, 3, device=vert_emb.device, dtype=vert_emb.dtype)
 
         for batchind in iterable:
             batch_minmax = [
@@ -256,9 +252,7 @@ def compute_per_tri_max_edge_length(vert_emb, faces):
 
     tri_embs = vert_emb[faces]  # (m1, 3, p)
 
-    lmax = (
-        th.linalg.norm(tri_embs - tri_embs[:, [1, 2, 0]], dim=-1).max(dim=1).values
-    )  # (m1,)
+    lmax = th.linalg.norm(tri_embs - tri_embs[:, [1, 2, 0]], dim=-1).max(dim=1).values  # (m1,)
 
     return lmax
 
@@ -428,9 +422,7 @@ def project_to_mesh_multi(
         deltamin = dmin[:, vertinds]  # (m1,l)
 
     # Get list of potential faces
-    query_faceinds = th.where(
-        (deltamin - lmax[:, None] < Deltamin[None, vertinds]).any(1)
-    )[
+    query_faceinds = th.where((deltamin - lmax[:, None] < Deltamin[None, vertinds]).any(1))[
         0
     ]  # (p,) p < m1
 
@@ -519,14 +511,10 @@ class PointsTriangleProjLayer(nn.Module):
         # final_t[region_4_1] = 0
         # Region 4.1.1
         final_s[region_4_11] = 1.0
-        final_dists[region_4_11] = (
-            a[region_4_11] + 2.0 * d[region_4_11] + f[region_4_11]
-        )
+        final_dists[region_4_11] = a[region_4_11] + 2.0 * d[region_4_11] + f[region_4_11]
         # Region 4.1.2
         final_s[region_4_12] = -d[region_4_12] / a[region_4_12]
-        final_dists[region_4_12] = (
-            d[region_4_12] * final_s[region_4_12] + f[region_4_12]
-        )
+        final_dists[region_4_12] = d[region_4_12] * final_s[region_4_12] + f[region_4_12]
 
         # Region 4.2
         # final_s[region_4_2] = 0  # Useless already done
@@ -536,14 +524,10 @@ class PointsTriangleProjLayer(nn.Module):
         # Regions 4.2.2
         # Region 4.2.2.1
         final_t[region_4_221] = 1
-        final_dists[region_4_221] = (
-            c[region_4_221] + 2.0 * e[region_4_221] + f[region_4_221]
-        )
+        final_dists[region_4_221] = c[region_4_221] + 2.0 * e[region_4_221] + f[region_4_221]
         # Region 4.2.2.2
         final_t[region_4_222] = -e[region_4_222] / c[region_4_222]
-        final_dists[region_4_222] = (
-            e[region_4_222] * final_t[region_4_222] + f[region_4_222]
-        )
+        final_dists[region_4_222] = e[region_4_222] * final_t[region_4_222] + f[region_4_222]
         return final_s, final_t, final_dists
 
     def process_r3(self, a, c, e, f, verbose=False):
@@ -565,14 +549,10 @@ class PointsTriangleProjLayer(nn.Module):
         # Region 3.2
         # Region 3.2.1
         final_t[region_3_21] = 1
-        final_dists[region_3_21] = (
-            c[region_3_21] + 2.0 * e[region_3_21] + f[region_3_21]
-        )
+        final_dists[region_3_21] = c[region_3_21] + 2.0 * e[region_3_21] + f[region_3_21]
         # Region 3.2.2
         final_t[region_3_22] = -e[region_3_22] / c[region_3_22]
-        final_dists[region_3_22] = (
-            e[region_3_22] * final_t[region_3_22] + f[region_3_22]
-        )
+        final_dists[region_3_22] = e[region_3_22] * final_t[region_3_22] + f[region_3_22]
 
         return final_s, final_t, final_dists
 
@@ -595,14 +575,10 @@ class PointsTriangleProjLayer(nn.Module):
         # Region 5.2
         # Region 5.2.1
         final_s[region_5_21] = 1
-        final_dists[region_5_21] = (
-            a[region_5_21] + 2.0 * d[region_5_21] + f[region_5_21]
-        )
+        final_dists[region_5_21] = a[region_5_21] + 2.0 * d[region_5_21] + f[region_5_21]
         # Region 5.2.2
         final_s[region_5_22] = -d[region_5_22] / a[region_5_22]
-        final_dists[region_5_22] = (
-            d[region_5_22] * final_s[region_5_22] + f[region_5_22]
-        )
+        final_dists[region_5_22] = d[region_5_22] * final_s[region_5_22] + f[region_5_22]
 
         return final_s, final_t, final_dists
 
@@ -650,9 +626,7 @@ class PointsTriangleProjLayer(nn.Module):
         #       Region 2.1.1
         final_s[region_2_11] = 1
         # final_t[region_2_11] = 0
-        final_dists[region_2_11] = (
-            a[region_2_11] + 2.0 * d[region_2_11] + f[region_2_11]
-        )
+        final_dists[region_2_11] = a[region_2_11] + 2.0 * d[region_2_11] + f[region_2_11]
         #       Region 2.1.2
         final_s[region_2_12] = numer[region_2_12] / denom[region_2_12]
         final_t[region_2_12] = 1 - final_s[region_2_12]
@@ -675,18 +649,14 @@ class PointsTriangleProjLayer(nn.Module):
         # final_s[region_2_2] = 0.
         #       Region 2.2.1
         final_t[region_2_21] = 1
-        final_dists[region_2_21] = (
-            c[region_2_21] + 2.0 * e[region_2_21] + f[region_2_21]
-        )
+        final_dists[region_2_21] = c[region_2_21] + 2.0 * e[region_2_21] + f[region_2_21]
         #       Region 2.2.2
         #           Region 2.2.2.1
         # final_t[region_2_221] = 0.
         final_dists[region_2_221] = f[region_2_221]
         #           Region 2.2.2.2
         final_t[region_2_222] = -e[region_2_222] / c[region_2_222]
-        final_dists[region_2_222] = (
-            e[region_2_222] * final_t[region_2_222] + f[region_2_222]
-        )
+        final_dists[region_2_222] = e[region_2_222] * final_t[region_2_222] + f[region_2_222]
 
         return final_s, final_t, final_dists
 
@@ -718,9 +688,7 @@ class PointsTriangleProjLayer(nn.Module):
         #       Region 6.1.1
         final_t[region_6_11] = 1
         # final_s[region_6_11] = 0
-        final_dists[region_6_11] = (
-            c[region_6_11] + 2.0 * e[region_6_11] + f[region_6_11]
-        )
+        final_dists[region_6_11] = c[region_6_11] + 2.0 * e[region_6_11] + f[region_6_11]
         #       Region 6.1.2
         final_t[region_6_12] = numer[region_6_12] / denom[region_6_12]
         final_s[region_6_12] = 1 - final_t[region_6_12]
@@ -743,18 +711,14 @@ class PointsTriangleProjLayer(nn.Module):
         # final_t[region_6_2] = 0.
         #       Region 6.2.1
         final_s[region_6_21] = 1
-        final_dists[region_6_21] = (
-            a[region_6_21] + 2.0 * d[region_6_21] + f[region_6_21]
-        )
+        final_dists[region_6_21] = a[region_6_21] + 2.0 * d[region_6_21] + f[region_6_21]
         #       Region 6.2.2
         #           Region 6.2.2.1
         # final_s[region_6_221] = 0.
         final_dists[region_6_221] = f[region_6_221]
         #           Region 6.2.2.2
         final_s[region_6_222] = -d[region_6_222] / a[region_6_222]
-        final_dists[region_6_222] = (
-            d[region_6_222] * final_s[region_6_222] + f[region_6_222]
-        )
+        final_dists[region_6_222] = d[region_6_222] * final_s[region_6_222] + f[region_6_222]
 
         return final_s, final_t, final_dists
 
@@ -781,9 +745,7 @@ class PointsTriangleProjLayer(nn.Module):
         #       Region  1.2.1
         final_s[region_1_21] = 1
         # final_t[region_1_21] = 0
-        final_dists[region_1_21] = (
-            a[region_1_21] + 2.0 * d[region_1_21] + f[region_1_21]
-        )
+        final_dists[region_1_21] = a[region_1_21] + 2.0 * d[region_1_21] + f[region_1_21]
         #       Region 1.2.2
         final_s[region_1_22] = numer[region_1_22] / denom[region_1_22]
         final_t[region_1_22] = 1 - final_s[region_1_22]
@@ -857,12 +819,8 @@ class PointsTriangleProjLayer(nn.Module):
         n_points = points.shape[0]
         n_triangles = triangles.shape[0]
 
-        final_s = th.zeros(
-            n_points, n_triangles, device=points.device, dtype=points.dtype
-        )  # (n,m)
-        final_t = th.zeros(
-            n_points, n_triangles, device=points.device, dtype=points.dtype
-        )  # (n,m)
+        final_s = th.zeros(n_points, n_triangles, device=points.device, dtype=points.dtype)  # (n,m)
+        final_t = th.zeros(n_points, n_triangles, device=points.device, dtype=points.dtype)  # (n,m)
         final_dists = th.zeros(
             n_points, n_triangles, device=points.device, dtype=points.dtype
         )  # (n, m)
@@ -875,15 +833,9 @@ class PointsTriangleProjLayer(nn.Module):
 
         #  Precompute quantities
 
-        a = (
-            th.einsum("ij,ij->i", axis1, axis1).unsqueeze(0).expand(points.shape[0], -1)
-        )  # (n, m)
-        b = (
-            th.einsum("ij,ij->i", axis1, axis2).unsqueeze(0).expand(points.shape[0], -1)
-        )  # (n, m)
-        c = (
-            th.einsum("ij,ij->i", axis2, axis2).unsqueeze(0).expand(points.shape[0], -1)
-        )  # (n, m)
+        a = th.einsum("ij,ij->i", axis1, axis1).unsqueeze(0).expand(points.shape[0], -1)  # (n, m)
+        b = th.einsum("ij,ij->i", axis1, axis2).unsqueeze(0).expand(points.shape[0], -1)  # (n, m)
+        c = th.einsum("ij,ij->i", axis2, axis2).unsqueeze(0).expand(points.shape[0], -1)  # (n, m)
         d = th.einsum("ij,nij->ni", axis1, diff)  # (n, m,)
         e = th.einsum("ij,nij->ni", axis2, diff)  # (n, m,)
         f = th.einsum("nij,nij->ni", diff, diff)  # (n, m,)
@@ -936,9 +888,7 @@ class PointsTriangleProjLayer(nn.Module):
 
         if return_dist:
             if min_only:
-                final_dists = th.gather(final_dists, -1, argmin_proj).squeeze(
-                    dim=-1
-                )  # (n,)
+                final_dists = th.gather(final_dists, -1, argmin_proj).squeeze(dim=-1)  # (n,)
             final_dists[final_dists < 0] = 0
             final_dists = th.sqrt(final_dists)  # (n,) or # (n,m)
 

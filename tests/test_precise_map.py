@@ -8,9 +8,7 @@ from densemaps.numpy import maps as nm
 
 
 def _fan_faces(n_faced):
-    return np.array(
-        [[i, (i + 1) % n_faced, (i + 2) % n_faced] for i in range(n_faced - 2)]
-    )
+    return np.array([[i, (i + 1) % n_faced, (i + 2) % n_faced] for i in range(n_faced - 2)])
 
 
 def test_precise_map_keeps_trailing_unreferenced_vertices():
@@ -29,6 +27,7 @@ def test_precise_map_keeps_trailing_unreferenced_vertices():
 
 
 def test_precise_map_rows_are_stochastic_and_sparse():
+    """Barycentric invariant: each row sums to 1 with at most 3 non-zeros."""
     rng = np.random.default_rng(1)
     V = rng.standard_normal((30, 4))
     F = _fan_faces(30)
@@ -57,6 +56,7 @@ from densemaps.torch import maps as tm
 
 
 def test_torch_precise_map_matches_numpy():
+    """Both backends build the same barycentric map: same shape, int n1, identical pull-backs."""
     rng = np.random.default_rng(3)
     V = rng.standard_normal((30, 4))
     F = _fan_faces(30)

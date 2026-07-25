@@ -14,9 +14,7 @@ def make_triangle_mesh(n_vertices, dim=3, seed=0):
     rng = np.random.default_rng(seed)
     verts = rng.standard_normal((n_vertices, dim))
     n_faced = min(n_vertices, n_vertices - 0)
-    faces = np.array(
-        [[i, (i + 1) % n_faced, (i + 2) % n_faced] for i in range(n_faced - 2)]
-    )
+    faces = np.array([[i, (i + 1) % n_faced, (i + 2) % n_faced] for i in range(n_faced - 2)])
     return verts, faces
 
 

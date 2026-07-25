@@ -30,6 +30,7 @@ def _embeddings(dtype, dim=5):
 
 @pytest.mark.parametrize("dist_type", ["sqdist", "inner"])
 def test_kernel_dense_agreement(dtype, dist_type):
+    """numpy and torch dense kernel maps agree on pull-back, get_nn and the dense matrix (no NaNs)."""
     e1, e2 = _embeddings(dtype)
     f = np.random.default_rng(4).standard_normal((N1, 3)).astype(dtype)
 
@@ -44,6 +45,7 @@ def test_kernel_dense_agreement(dtype, dist_type):
 
 
 def test_p2p_agreement(dtype):
+    """numpy and torch nearest-neighbour maps pick identical indices and identical pull-backs."""
     e1, e2 = _embeddings(dtype)
     f = np.random.default_rng(4).standard_normal((N1, 3)).astype(dtype)
     Pn = nm.EmbP2PMap(e1, e2)

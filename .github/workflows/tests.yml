@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_call:      # lets publish.yml reuse this as a release gate
+
+jobs:
+  format:
+    name: Format check (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: python -m pip install ruff
+      - name: Check formatting
+        run: ruff format --check densemaps/ tests/
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - name: Install package (numpy + torch backends)
+        run: |
+          python -m pip install --upgrade pip
+          # keops tests auto-skip via pytest.importorskip("pykeops"),
+          # so pykeops is intentionally left out to keep the gate fast and reliable.
+          pip install ".[torch]" pytest
+      - name: Run tests
+        run: pytest -v

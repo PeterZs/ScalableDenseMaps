@@ -27,22 +27,18 @@ def knn_query(X, Y, k=1, return_distance=False, n_jobs=1):
         (n2,k) or (n2,) if k=1 (with optional first batch dimension)- nearest neighbor
     """
     if X.ndim == 3 and Y.ndim == 3 and X.shape[0] != Y.shape[0]:
-        assert (
-            X.shape[0] == 1 or Y.shape[0] == 1
-        ), "Batch sizes of X and Y should match, or one of them should be 1"
+        assert X.shape[0] == 1 or Y.shape[0] == 1, (
+            "Batch sizes of X and Y should match, or one of them should be 1"
+        )
         # Only one of the two has a batch dimension of 1: broadcast it
         if X.shape[0] == 1:
             all_res = [
-                knn_query(
-                    X[0], Y[i], k=k, return_distance=return_distance, n_jobs=n_jobs
-                )
+                knn_query(X[0], Y[i], k=k, return_distance=return_distance, n_jobs=n_jobs)
                 for i in range(Y.shape[0])
             ]
         else:
             all_res = [
-                knn_query(
-                    X[i], Y[0], k=k, return_distance=return_distance, n_jobs=n_jobs
-                )
+                knn_query(X[i], Y[0], k=k, return_distance=return_distance, n_jobs=n_jobs)
                 for i in range(X.shape[0])
             ]
 
@@ -54,9 +50,7 @@ def knn_query(X, Y, k=1, return_distance=False, n_jobs=1):
             matches = np.stack(all_res, axis=0)  # (B, n2, k)
             return matches
 
-    tree = NearestNeighbors(
-        n_neighbors=k, leaf_size=40, algorithm="kd_tree", n_jobs=n_jobs
-    )
+    tree = NearestNeighbors(n_neighbors=k, leaf_size=40, algorithm="kd_tree", n_jobs=n_jobs)
 
     if X.ndim == 2:
         tree.fit(X)
@@ -107,9 +101,7 @@ def compute_sqdistmat(X, Y, normalized=False):
     if not normalized:
         # (..., N, 1) + (...,1, M)
         return (
-            np.square(X).sum(-1)[..., :, None]
-            + np.square(Y).sum(-1)[..., None, :]
-            - 2 * (X @ Y_t)
+            np.square(X).sum(-1)[..., :, None] + np.square(Y).sum(-1)[..., None, :] - 2 * (X @ Y_t)
         )
     else:
         return 2 - 2 * X @ Y_t
