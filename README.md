@@ -5,6 +5,7 @@
 </p>
 
 
+[![PyPI](https://img.shields.io/pypi/v/densemaps.svg)](https://pypi.org/project/densemaps/)
 [![](https://github.com/RobinMagnet/ScalableDenseMaps/actions/workflows/documentation.yml/badge.svg)](https://robinmagnet.github.io/ScalableDenseMaps/)
 
 Welcome to the documentation of `densemaps` !
@@ -15,15 +16,21 @@ A lightweight library that offers:
 
 # Installing
 
-Clone the repository and install it with `pip`:
+Install from PyPI with `pip`:
+
+```bash
+pip install densemaps                 # NumPy backend only (numpy, scipy, scikit-learn, tqdm)
+pip install "densemaps[torch]"        # + PyTorch backend
+pip install "densemaps[torch,keops]"  # + memory-scalable KernelDistMap (pykeops)
+pip install "densemaps[all]"          # everything
+```
+
+Or install the latest development version from source:
 
 ```bash
 git clone https://github.com/RobinMagnet/ScalableDenseMaps.git
 cd ScalableDenseMaps
-pip install .                 # NumPy backend only (numpy, scipy, scikit-learn, tqdm)
-pip install ".[torch]"        # + PyTorch backend
-pip install ".[torch,keops]"  # + memory-scalable KernelDistMap (pykeops)
-pip install ".[all]"          # everything
+pip install ".[torch,keops]"
 ```
 
 The NumPy backend has no PyTorch dependency; install the `torch` / `keops` extras only if
